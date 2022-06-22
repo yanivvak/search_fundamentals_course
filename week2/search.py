@@ -62,10 +62,31 @@ def autocomplete():
         prefix = request.args.get("prefix")
         print(f"Prefix: {prefix}")
         if prefix is not None:
-            type = request.args.get("type", "queries") # If type == queries, this is an autocomplete request, else if products, it's an instant search request.
+            # If type == queries, this is an autocomplete request, 
+            # else if products, it's an instant search request.
+            type = request.args.get("type", "queries") 
             ##### W2, L3, S1
-            search_response = None
-            print("TODO: implement autocomplete AND instant search")
+
+            # Select index
+            index_name = "bbuy_queries" if type == "queries" else "bbuy_products"
+
+            # Create the request
+            query = {
+                "suggest": {
+                    "autocomplete": {
+                        "prefix": prefix,
+                        "completion": {
+                            "field": "suggest", 
+                            "skip_duplicates": True
+                            }
+                    }
+                }
+            }
+            
+            # Submit the request
+            opensearch = get_opensearch()
+            search_response = opensearch.search(body=query, index=index_name)
+
             if (search_response and search_response['suggest']['autocomplete'] and search_response['suggest']['autocomplete'][0]['length'] > 0): # just a query response
                 results = search_response['suggest']['autocomplete'][0]['options']
     print(f"Results: {results}")
@@ -106,8 +127,10 @@ def query():
 
         query_obj = qu.create_query(user_query,  [], sort, sortDir, size=20)  # We moved create_query to a utility class so we could use it elsewhere.
         ##### W2, L1, S2
-
+        
         ##### W2, L2, S2
+        query_obj = qu.add_spelling_suggestions(query_obj=query_obj, user_query=user_query)
+        
         print("Plain ol q: %s" % query_obj)
     elif request.method == 'GET':  # Handle the case where there is no query or just loading the page
         user_query = request.args.get("query", "*")
@@ -123,6 +146,7 @@ def query():
         #### W2, L1, S2
 
         ##### W2, L2, S2
+        query_obj = qu.add_spelling_suggestions(query_obj=query_obj, user_query=user_query)
 
     else:
         query_obj = qu.create_query("*", "", [], sort, sortDir, size=100)
@@ -138,4 +162,3 @@ def query():
                                sort=sort, sortDir=sortDir, explain=explain, autocompleteSelect=autocompleteSelect)
     else:
         redirect(url_for("index"))
-
